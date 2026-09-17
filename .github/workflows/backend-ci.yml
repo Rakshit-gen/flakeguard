@@ -1,0 +1,55 @@
+name: backend-ci
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flakeguard
+          POSTGRES_PASSWORD: flakeguard
+          POSTGRES_DB: flakeguard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=flakeguard_test;Username=flakeguard;Password=flakeguard"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore backend/tests/FlakeGuard.Tests/FlakeGuard.Tests.csproj
+
+      - name: Build API
+        run: dotnet build backend/src/FlakeGuard.Api/FlakeGuard.Api.csproj --configuration Release
+
+      - name: Run tests
+        run: dotnet test backend/tests/FlakeGuard.Tests/FlakeGuard.Tests.csproj --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/tests/FlakeGuard.Tests/TestResults/test-results.trx

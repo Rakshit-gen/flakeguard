@@ -1,0 +1,21 @@
+databases:
+  - name: flakeguard-db
+    plan: free
+    databaseName: flakeguard
+    user: flakeguard
+
+services:
+  - type: web
+    name: flakeguard-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ConnectionStrings__Postgres
+        fromDatabase:
+          name: flakeguard-db
+          property: connectionString
+      - key: AllowedOrigins__0
+        sync: false
