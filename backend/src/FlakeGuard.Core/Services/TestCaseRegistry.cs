@@ -1,5 +1,6 @@
 using FlakeGuard.Core.Domain;
 using FlakeGuard.Core.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace FlakeGuard.Core.Services;
 
@@ -22,7 +23,24 @@ public class TestCaseRegistry(ITestCaseRepository testCaseRepository)
             TestName = testName,
             LastUpdatedAt = DateTimeOffset.UtcNow,
         };
-        await testCaseRepository.AddAsync(testCase);
-        return testCase;
+
+        try
+        {
+            await testCaseRepository.AddAsync(testCase);
+            return testCase;
+        }
+        catch (DbUpdateException)
+        {
+            // Two concurrent first-sight ingestions for the same test (e.g. parallel CI
+            // shards) can both pass the GetAsync check above; the unique index on
+            // (RepositoryId, SuiteName, TestName) then rejects the loser's insert. Fall back
+            // to whichever row actually won instead of failing the whole ingest request.
+            var winner = await testCaseRepository.GetAsync(repositoryId, suiteName, testName);
+            if (winner is not null)
+            {
+                return winner;
+            }
+            throw;
+        }
     }
 }
