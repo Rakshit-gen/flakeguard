@@ -26,7 +26,11 @@ public class GitHubQuarantineNotifier(HttpClient httpClient, ILogger<GitHubQuara
         }
 
         var testNames = string.Join(", ", newlyQuarantined.Select(t => t.FullyQualifiedName));
-        var description = testNames.Length > 140 ? testNames[..137] + "..." : testNames;
+        var description = $"Quarantined: {testNames}";
+        if (description.Length > 140)
+        {
+            description = description[..137] + "...";
+        }
 
         var request = new HttpRequestMessage(
             HttpMethod.Post, $"https://api.github.com/repos/{repository.FullName}/statuses/{commitSha}")
@@ -35,7 +39,7 @@ public class GitHubQuarantineNotifier(HttpClient httpClient, ILogger<GitHubQuara
             {
                 state = "failure",
                 context = "flakeguard/quarantine",
-                description = $"Quarantined: {description}",
+                description,
                 target_url = $"https://github.com/{repository.FullName}/commit/{commitSha}",
             }),
         };
